@@ -1,0 +1,96 @@
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoSuchElementException, ElementNotInteractableException, TimeoutException
+from webdriver_manager.chrome import ChromeDriverManager
+import time
+
+# 웹 드라이버 설정
+service = Service(ChromeDriverManager().install())
+options = webdriver.ChromeOptions()
+driver = webdriver.Chrome(service=service, options=options)
+
+base_urls = {
+    "운영정책": "https://cs.kr.karrotmarket.com/wv/faqs?kind=policy",
+    "중고거래": "https://cs.kr.karrotmarket.com/wv/faqs?kind=flea_market",
+    "비즈프로필": "https://cs.kr.karrotmarket.com/wv/faqs?kind=biz_profile",
+    "광고": "https://cs.kr.karrotmarket.com/wv/faqs?kind=advertisement",
+    "당근알바": "https://cs.kr.karrotmarket.com/wv/faqs?kind=job",
+    "기타": "https://cs.kr.karrotmarket.com/wv/faqs?kind=etc",
+    "계정/인증/로그인": "https://cs.kr.karrotmarket.com/wv/faqs?kind=accounts",
+    "당근페이": "https://cs.kr.karrotmarket.com/wv/faqs?kind=daangnpay",
+    "상품판매": "https://cs.kr.karrotmarket.com/wv/faqs?kind=commerce",
+    "동네생활": "https://cs.kr.karrotmarket.com/wv/faqs?kind=community",
+    "전문가모드 광고": "https://cs.kr.karrotmarket.com/wv/faqs?kind=pro_ad"
+}
+
+def save_question_answer_to_file(question, answer, category):
+    with open(f"{category}.txt", "a", encoding="utf-8") as file:
+        file.write(f"Question: {question}\n")
+        file.write(f"Answer: {answer}\n\n")
+
+def find_and_extract_from_kind_data(start_url, category):
+    driver.get(start_url)
+    nth_child = 1
+
+    while True:
+        try:
+            selector = f"#item-list-wrapper > li:nth-child({nth_child}) > a"
+            element = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
+            element.click()
+            time.sleep(1)  # 페이지 로딩 대기
+            
+            def click_nested_items_and_collect_data():
+                inner_nth_child = 1
+                while True:
+                    try:
+                        inner_selector = f"#item-list-wrapper > li:nth-child({inner_nth_child}) > a"
+                        inner_element = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.CSS_SELECTOR, inner_selector)))
+                        inner_element.click()
+                        time.sleep(1)  # 페이지 로딩 대기
+                        
+                        current_url = driver.current_url
+                        if "from_kind" in current_url:
+                            try:
+                                question_element = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#wv-faqs-show > div > h1")))
+                                content_element = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#content")))
+
+                                question = question_element.text
+                                answer = content_element.text
+
+                                save_question_answer_to_file(question, answer, category)
+                            except (NoSuchElementException, TimeoutException):
+                                print(f"Failed to extract data from item {inner_nth_child}")
+
+                            driver.back()
+                            time.sleep(1)  # 페이지 로딩 대기
+                            inner_nth_child += 1
+                        else:
+                            click_nested_items_and_collect_data()  # 재귀 호출
+                            driver.back()
+                            time.sleep(1)  # 페이지 로딩 대기
+                    except (NoSuchElementException, ElementNotInteractableException, TimeoutException):
+                        break
+                    except Exception as e:
+                        print(f"An error occurred: {e}")
+                        break
+
+            click_nested_items_and_collect_data()
+            driver.back()
+            time.sleep(1)  # 페이지 로딩 대기
+            nth_child += 1
+        except (NoSuchElementException, ElementNotInteractableException, TimeoutException):
+            break
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            break
+
+# 모든 카테고리에 대해 데이터를 수집
+for category, url in base_urls.items():
+    print(f"Processing category: {category}")
+    find_and_extract_from_kind_data(url, category)
+
+# 웹 드라이버 종료
+driver.quit()
