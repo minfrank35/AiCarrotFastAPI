@@ -20,7 +20,7 @@ class Answer(BaseModel):
 class ChatBotAnswer(BaseModel):
     answer : str
 
-@app.post("/ask", response_model=Answer)
+@app.post("/askaisales", response_model=Answer)
 async def ask_question(question: Question):
     try:
         response = json.loads(getAiSales("아래 내용을 바탕으로 판매글을 작성해줘.\n" + "제목 : " + question.pd_name + "\n" + question.detail))
@@ -37,11 +37,10 @@ async def ask_question(question: Question):
         return {"error": str(e)}
     
 
-@app.post("/ask2", response_model=ChatBotAnswer)
-async def ask_question():
+@app.get("/askaichatbot", response_model=ChatBotAnswer)
+async def ask_question(message: str = "질문을 다시 해주세요라고 답변해줘"):
     try:
-        response = json.loads(getChatbotAnswer("당근의 서비스 이용제한 정책은 어떻게 되니?"))
-        
+        response = json.loads(getChatbotAnswer(message))
         
         answer = ChatBotAnswer(**response)
         return answer
@@ -49,6 +48,7 @@ async def ask_question():
     except Exception as e:
         print(e)
         return {"error": str(e)}
+    
 
 # FastAPI 애플리케이션 실행 (uvicorn 사용)
 if __name__ == "__main__":
